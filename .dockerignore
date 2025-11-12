@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Build artifacts
+kiln
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*.test
+*.out
+
+# Documentation
+README.md
+docs/
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Database
+db_data/
+
+# Session data
+.gasetten/
+
+# OS
+.DS_Store

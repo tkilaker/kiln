@@ -1,0 +1,156 @@
+package server
+
+import (
+	"github.com/tim/kiln/internal/database"
+	"fmt"
+)
+
+// Layout is the base HTML template
+templ Layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - Kiln</title>
+			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+			<script src="https://cdn.tailwindcss.com"></script>
+		</head>
+		<body class="bg-gray-50">
+			<nav class="bg-white shadow-sm mb-8">
+				<div class="max-w-4xl mx-auto px-4 py-4">
+					<div class="flex justify-between items-center">
+						<h1 class="text-2xl font-bold text-gray-900">
+							<a href="/">🔥 Kiln</a>
+						</h1>
+						<div class="flex gap-4">
+							<a href="/articles" class="text-gray-600 hover:text-gray-900">Articles</a>
+							<a href="/rss.xml" class="text-gray-600 hover:text-gray-900">RSS</a>
+						</div>
+					</div>
+				</div>
+			</nav>
+			<main class="max-w-4xl mx-auto px-4">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
+
+// ArticleListPage renders the list of articles
+templ ArticleListPage(articles []*database.Article) {
+	@Layout("Articles") {
+		<div class="mb-6 flex justify-between items-center">
+			<h2 class="text-3xl font-bold text-gray-900">Articles</h2>
+			<button
+				hx-post="/scrape"
+				hx-target="#scrape-result"
+				hx-swap="innerHTML"
+				class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+			>
+				Scrape New Articles
+			</button>
+		</div>
+		<div id="scrape-result" class="mb-4"></div>
+		if len(articles) == 0 {
+			<div class="text-center py-12">
+				<p class="text-gray-500 text-lg">No articles yet. Click "Scrape New Articles" to get started!</p>
+			</div>
+		} else {
+			<div class="space-y-4">
+				for _, article := range articles {
+					@ArticleCard(article)
+				}
+			</div>
+		}
+	}
+}
+
+// ArticleCard renders a single article card
+templ ArticleCard(article *database.Article) {
+	<div class="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
+		<a href={ templ.URL(fmt.Sprintf("/articles/%d", article.ID)) } class="block">
+			<h3 class="text-xl font-semibold text-gray-900 mb-2">
+				if article.Title != nil {
+					{ *article.Title }
+				} else {
+					Untitled Article
+				}
+			</h3>
+			<div class="flex gap-4 text-sm text-gray-600 mb-3">
+				if article.Author != nil {
+					<span>By { *article.Author }</span>
+				}
+				if article.PublishedAt != nil {
+					<span>{ article.PublishedAt.Format("January 2, 2006") }</span>
+				} else {
+					<span>{ article.CreatedAt.Format("January 2, 2006") }</span>
+				}
+			</div>
+			if article.ContentText != nil {
+				<p class="text-gray-700 line-clamp-3">
+					{ truncate(*article.ContentText, 200) }
+				</p>
+			}
+		</a>
+	</div>
+}
+
+// ArticleDetailPage renders a single article in detail
+templ ArticleDetailPage(article *database.Article) {
+	@Layout(getTitle(article)) {
+		<article class="bg-white rounded-lg shadow-sm p-8">
+			<div class="mb-6">
+				<a href="/articles" class="text-blue-600 hover:text-blue-800 text-sm">&larr; Back to articles</a>
+			</div>
+			<header class="mb-8">
+				<h1 class="text-4xl font-bold text-gray-900 mb-4">
+					if article.Title != nil {
+						{ *article.Title }
+					} else {
+						Untitled Article
+					}
+				</h1>
+				<div class="flex gap-4 text-gray-600">
+					if article.Author != nil {
+						<span>By { *article.Author }</span>
+					}
+					if article.PublishedAt != nil {
+						<span>{ article.PublishedAt.Format("January 2, 2006") }</span>
+					} else {
+						<span>{ article.CreatedAt.Format("January 2, 2006") }</span>
+					}
+				</div>
+				<div class="mt-2 text-sm text-gray-500">
+					<a href={ templ.URL(article.URL) } target="_blank" class="hover:text-gray-700">
+						View original &rarr;
+					</a>
+				</div>
+			</header>
+			<div class="prose prose-lg max-w-none">
+				if article.ContentHTML != nil {
+					@templ.Raw(*article.ContentHTML)
+				} else if article.ContentText != nil {
+					<p>{ *article.ContentText }</p>
+				} else {
+					<p class="text-gray-500">No content available</p>
+				}
+			</div>
+		</article>
+	}
+}
+
+// Helper functions
+func getTitle(article *database.Article) string {
+	if article.Title != nil {
+		return *article.Title
+	}
+	return "Untitled Article"
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}

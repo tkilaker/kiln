@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@db:5432/kiln?sslmode=disable
+      - GASETTEN_USER=${GASETTEN_USER}
+      - GASETTEN_PASS=${GASETTEN_PASS}
+      - PORT=8080
+      - FEED_TITLE=${FEED_TITLE:-My Personal Kiln Feed}
+      - FEED_DESCRIPTION=${FEED_DESCRIPTION:-Articles from Gasetten}
+      - FEED_LINK=${FEED_LINK:-http://localhost:8080}
+      - FEED_AUTHOR=${FEED_AUTHOR:-Kiln User}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - session_data:/root/.gasetten
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kiln
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  session_data:
