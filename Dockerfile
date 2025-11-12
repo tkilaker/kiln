@@ -17,15 +17,24 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o kiln ./cmd/kiln
 
 # Runtime stage
-FROM chromedp/headless-shell:latest
+FROM alpine:latest
 
-# Install ca-certificates for HTTPS
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install ca-certificates and chromium for Rod
+RUN apk add --no-cache ca-certificates chromium
+
+# Create non-root user
+RUN addgroup -S kiln && adduser -S kiln -G kiln
 
 WORKDIR /app
 
 # Copy binary from builder
 COPY --from=builder /build/kiln .
+
+# Change ownership
+RUN chown -R kiln:kiln /app
+
+# Switch to non-root user
+USER kiln
 
 # Expose port
 EXPOSE 8080
