@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/joho/godotenv"
 	"github.com/tkilaker/kiln/internal/config"
 	"github.com/tkilaker/kiln/internal/database"
 	"github.com/tkilaker/kiln/internal/scraper"
@@ -22,6 +23,9 @@ func main() {
 
 func run() error {
 	ctx := context.Background()
+
+	// Load .env file (ignore error if it doesn't exist - env vars may be set directly)
+	_ = godotenv.Load()
 
 	// Load configuration
 	cfg, err := config.Load()
