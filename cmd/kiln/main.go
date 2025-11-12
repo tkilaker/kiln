@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/tim/kiln/internal/config"
-	"github.com/tim/kiln/internal/database"
-	"github.com/tim/kiln/internal/scraper"
-	"github.com/tim/kiln/internal/server"
+	"github.com/tkilaker/kiln/internal/config"
+	"github.com/tkilaker/kiln/internal/database"
+	"github.com/tkilaker/kiln/internal/scraper"
+	"github.com/tkilaker/kiln/internal/server"
 )
 
 func main() {

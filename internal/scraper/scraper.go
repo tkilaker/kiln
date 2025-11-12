@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
-	"github.com/tim/kiln/internal/database"
+	"github.com/tkilaker/kiln/internal/database"
 )
 
 // Scraper handles web scraping for Gasetten

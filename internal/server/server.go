@@ -8,9 +8,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/tim/kiln/internal/config"
-	"github.com/tim/kiln/internal/database"
-	"github.com/tim/kiln/internal/scraper"
+	"github.com/tkilaker/kiln/internal/config"
+	"github.com/tkilaker/kiln/internal/database"
+	"github.com/tkilaker/kiln/internal/scraper"
 )
 
 // Server represents the HTTP server

@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
-	"github.com/tim/kiln/internal/database"
+	"github.com/tkilaker/kiln/internal/database"
 )
 
 // Layout is the base HTML template

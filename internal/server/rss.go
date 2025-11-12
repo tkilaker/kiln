@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gorilla/feeds"
-	"github.com/tim/kiln/internal/config"
-	"github.com/tim/kiln/internal/database"
+	"github.com/tkilaker/kiln/internal/config"
+	"github.com/tkilaker/kiln/internal/database"
 )
 
 // GenerateRSSFeed creates an RSS feed from articles

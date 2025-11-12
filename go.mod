@@ -1,6 +1,6 @@
-module github.com/tim/kiln
+module github.com/tkilaker/kiln
 
-go 1.25.4
+go 1.23.0
 
 require (
 	github.com/a-h/templ v0.3.960
