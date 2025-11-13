@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,14 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/launcher"
+	"github.com/go-rod/rod/lib/proto"
+	readability "github.com/go-shiori/go-readability"
 	"github.com/tkilaker/kiln/internal/database"
+)
+
+const (
+	// PageTimeout is the default timeout for page operations
+	PageTimeout = 30 * time.Second
 )
 
 // Scraper handles web scraping for Gasetten
@@ -21,10 +29,12 @@ type Scraper struct {
 	db         *database.DB
 	sessionDir string
 	browser    *rod.Browser
+	headless   bool
+	progress   *ProgressTracker
 }
 
 // New creates a new scraper instance
-func New(username, password string, db *database.DB) (*Scraper, error) {
+func New(username, password string, db *database.DB, headless bool) (*Scraper, error) {
 	// Create session directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -41,6 +51,8 @@ func New(username, password string, db *database.DB) (*Scraper, error) {
 		password:   password,
 		db:         db,
 		sessionDir: sessionDir,
+		headless:   headless,
+		progress:   NewProgressTracker(),
 	}, nil
 }
 
@@ -54,12 +66,18 @@ func (s *Scraper) initBrowser() error {
 	path, _ := launcher.LookPath()
 	u := launcher.New().
 		Bin(path).
-		Headless(true).
+		Headless(s.headless).
 		UserDataDir(s.sessionDir).
 		MustLaunch()
 
 	browser := rod.New().ControlURL(u).MustConnect()
 	s.browser = browser
+
+	if s.headless {
+		log.Println("Browser launched in headless mode")
+	} else {
+		log.Println("Browser launched in visible mode for debugging")
+	}
 
 	return nil
 }
@@ -72,17 +90,27 @@ func (s *Scraper) Close() error {
 	return nil
 }
 
+// GetProgressTracker returns the progress tracker
+func (s *Scraper) GetProgressTracker() *ProgressTracker {
+	return s.progress
+}
+
 // Login logs into Gasetten using username and password
 func (s *Scraper) Login(ctx context.Context) error {
 	if err := s.initBrowser(); err != nil {
 		return err
 	}
 
-	page := s.browser.MustPage("https://gasetten.se/login")
+	page := s.browser.MustPage("https://gasetten.se/min-profil/")
 	defer page.Close()
 
+	// Set page timeout
+	page = page.Timeout(PageTimeout)
+
 	// Wait for page to load
-	page.MustWaitLoad()
+	if err := page.WaitLoad(); err != nil {
+		return fmt.Errorf("timeout waiting for login page to load: %w", err)
+	}
 
 	// Check if already logged in by looking for logout link or user menu
 	if s.isLoggedIn(page) {
@@ -92,24 +120,61 @@ func (s *Scraper) Login(ctx context.Context) error {
 
 	log.Println("Logging into Gasetten...")
 
-	// Find and fill username field (adjust selectors based on actual Gasetten login page)
-	usernameField := page.MustElement(`input[name="username"], input[type="email"], input[name="email"]`)
-	usernameField.MustInput(s.username)
+	// Find and fill username field (WordPress login form uses name="log")
+	log.Println("Looking for username field...")
+	usernameField, err := page.Element(`input[name="log"]`)
+	if err != nil {
+		return fmt.Errorf("could not find username field (input[name='log']): %w", err)
+	}
+	if err := usernameField.Input(s.username); err != nil {
+		return fmt.Errorf("could not input username: %w", err)
+	}
+	log.Println("Entered username")
 
-	// Find and fill password field
-	passwordField := page.MustElement(`input[type="password"]`)
-	passwordField.MustInput(s.password)
+	// Find and fill password field (WordPress login form uses name="pwd")
+	log.Println("Looking for password field...")
+	passwordField, err := page.Element(`input[name="pwd"]`)
+	if err != nil {
+		return fmt.Errorf("could not find password field (input[name='pwd']): %w", err)
+	}
+	if err := passwordField.Input(s.password); err != nil {
+		return fmt.Errorf("could not input password: %w", err)
+	}
+	log.Println("Entered password")
 
-	// Find and click login button
-	loginButton := page.MustElement(`button[type="submit"], input[type="submit"]`)
-	loginButton.MustClick()
+	// Find and click login button (WordPress uses id="wp-submit")
+	log.Println("Looking for login button...")
+	loginButton, err := page.Element(`input[id="wp-submit"]`)
+	if err != nil {
+		return fmt.Errorf("could not find login button (input[id='wp-submit']): %w", err)
+	}
+	if err := loginButton.Click(proto.InputMouseButtonLeft, 1); err != nil {
+		return fmt.Errorf("could not click login button: %w", err)
+	}
+	log.Println("Clicked login button")
 
 	// Wait for navigation after login
-	page.MustWaitLoad()
+	log.Println("Waiting for navigation after login...")
+	if err := page.WaitLoad(); err != nil {
+		return fmt.Errorf("timeout waiting for page after login: %w", err)
+	}
+
+	// Log where we ended up
+	currentURL := page.MustInfo().URL
+	log.Printf("After login, redirected to: %s", currentURL)
 
 	// Verify login was successful
 	if !s.isLoggedIn(page) {
-		return fmt.Errorf("login failed - could not verify successful authentication")
+		// Log additional debug info
+		log.Printf("Login verification failed at URL: %s", currentURL)
+
+		// Check if there's an error message on the page
+		errorMsg := s.extractText(page, `.login-error, #login_error, .error`)
+		if errorMsg != "" {
+			return fmt.Errorf("login failed - error message: %s", errorMsg)
+		}
+
+		return fmt.Errorf("login failed - could not verify successful authentication at %s", currentURL)
 	}
 
 	log.Println("Successfully logged into Gasetten")
@@ -118,36 +183,86 @@ func (s *Scraper) Login(ctx context.Context) error {
 
 // isLoggedIn checks if the current page shows signs of being logged in
 func (s *Scraper) isLoggedIn(page *rod.Page) bool {
-	// Try to find common elements that indicate logged-in state
-	// Adjust these selectors based on actual Gasetten structure
-	has, _, _ := page.Has(`a[href*="logout"], .user-menu, .account-menu`)
-	return has
+	// Primary check: if login form is present, we're NOT logged in
+	hasLoginForm, _, _ := page.Has(`form#loginform`)
+	if hasLoginForm {
+		log.Println("Login form still present - not logged in")
+		return false
+	}
+
+	// If no login form is present, we're logged in
+	// This works because WordPress shows the login form when not authenticated,
+	// and shows profile/account content when authenticated
+	log.Println("No login form found - logged in successfully")
+	return true
 }
 
 // ScrapeArticles fetches and stores articles from Gasetten
 func (s *Scraper) ScrapeArticles(ctx context.Context) (int, error) {
+	// Mark as active and reset progress
+	s.progress.SetActive(true)
+	s.progress.UpdateStatus(StatusStarting, "Initializing browser...")
+	defer s.progress.SetActive(false)
+
 	if err := s.initBrowser(); err != nil {
+		s.progress.UpdateStatus(StatusFailed, fmt.Sprintf("Failed to initialize browser: %v", err))
 		return 0, err
 	}
 
 	// Ensure we're logged in
+	s.progress.UpdateStatus(StatusLoggingIn, "Logging into Gasetten...")
 	if err := s.Login(ctx); err != nil {
+		s.progress.UpdateStatus(StatusFailed, fmt.Sprintf("Login failed: %v", err))
 		return 0, fmt.Errorf("failed to login: %w", err)
 	}
 
-	page := s.browser.MustPage("https://gasetten.se")
+	// Check if context was cancelled
+	select {
+	case <-ctx.Done():
+		s.progress.UpdateStatus(StatusCancelled, "Operation cancelled by user")
+		return 0, ctx.Err()
+	default:
+	}
+
+	s.progress.UpdateStatus(StatusScraping, "Loading article category page...")
+
+	// Scrape from the Malmö FF category page which has better article organization
+	page := s.browser.MustPage("https://gasetten.se/category/malmo-ff/")
 	defer page.Close()
 
-	page.MustWaitLoad()
+	// Set page timeout
+	page = page.Timeout(PageTimeout)
+
+	if err := page.WaitLoad(); err != nil {
+		s.progress.UpdateStatus(StatusFailed, "Timeout waiting for category page")
+		return 0, fmt.Errorf("timeout waiting for category page to load: %w", err)
+	}
+
+	log.Println("Loaded category page, extracting article links...")
+	s.progress.UpdateStatus(StatusScraping, "Extracting article links...")
 
 	// Find all article links on the page
 	// Adjust selector based on actual Gasetten HTML structure
 	articleLinks := s.extractArticleLinks(page)
 
 	log.Printf("Found %d articles to scrape", len(articleLinks))
+	s.progress.Update(ProgressUpdate{
+		Status:     StatusScraping,
+		Message:    fmt.Sprintf("Found %d articles, starting to scrape...", len(articleLinks)),
+		TotalItems: len(articleLinks),
+	})
 
 	scrapedCount := 0
 	for i, link := range articleLinks {
+		// Check if context was cancelled
+		select {
+		case <-ctx.Done():
+			s.progress.UpdateStatus(StatusCancelled, fmt.Sprintf("Operation cancelled. Scraped %d articles before cancellation.", scrapedCount))
+			return scrapedCount, ctx.Err()
+		default:
+		}
+
+		s.progress.UpdateProgress(i+1, len(articleLinks), fmt.Sprintf("Processing article %d/%d...", i+1, len(articleLinks)))
 		log.Printf("Scraping article %d/%d: %s", i+1, len(articleLinks), link)
 
 		// Check if article already exists
@@ -158,6 +273,7 @@ func (s *Scraper) ScrapeArticles(ctx context.Context) (int, error) {
 		}
 		if exists {
 			log.Printf("Article already exists, skipping: %s", link)
+			s.progress.UpdateProgress(i+1, len(articleLinks), fmt.Sprintf("Article %d/%d already exists, skipping...", i+1, len(articleLinks)))
 			continue
 		}
 
@@ -177,9 +293,27 @@ func (s *Scraper) ScrapeArticles(ctx context.Context) (int, error) {
 		scrapedCount++
 		log.Printf("Successfully scraped and saved article: %s", article.URL)
 
+		// Update progress with new article ID
+		s.progress.Update(ProgressUpdate{
+			Status:        StatusScraping,
+			Message:       fmt.Sprintf("Saved article %d/%d (%d new)", i+1, len(articleLinks), scrapedCount),
+			CurrentItem:   i + 1,
+			TotalItems:    len(articleLinks),
+			ArticlesAdded: scrapedCount,
+			NewArticleID:  article.ID,
+		})
+
 		// Small delay to be respectful to the server
 		time.Sleep(1 * time.Second)
 	}
+
+	s.progress.Update(ProgressUpdate{
+		Status:        StatusCompleted,
+		Message:       fmt.Sprintf("Completed! Added %d new articles.", scrapedCount),
+		CurrentItem:   len(articleLinks),
+		TotalItems:    len(articleLinks),
+		ArticlesAdded: scrapedCount,
+	})
 
 	return scrapedCount, nil
 }
@@ -187,90 +321,140 @@ func (s *Scraper) ScrapeArticles(ctx context.Context) (int, error) {
 // extractArticleLinks extracts article URLs from a page
 func (s *Scraper) extractArticleLinks(page *rod.Page) []string {
 	var links []string
+	seen := make(map[string]bool)
 
-	// Try different common patterns for article links
-	// Adjust these selectors based on actual Gasetten structure
-	selectors := []string{
-		`article a[href*="/articles/"]`,
-		`article a[href*="/posts/"]`,
-		`.article-list a`,
-		`a.article-link`,
-		`main a[href*="/20"]`, // Links containing year (like /2024/)
+	// Get all links on the page
+	elements, err := page.Elements(`a[href]`)
+	if err != nil {
+		log.Printf("Error finding links: %v", err)
+		return links
 	}
 
-	for _, selector := range selectors {
-		elements, err := page.Elements(selector)
-		if err != nil {
+	log.Printf("Found %d total links on page", len(elements))
+
+	for _, el := range elements {
+		href, err := el.Attribute("href")
+		if err != nil || href == nil {
 			continue
 		}
 
-		for _, el := range elements {
-			href, err := el.Attribute("href")
-			if err != nil || href == nil {
-				continue
-			}
+		url := *href
 
-			url := *href
-			// Convert relative URLs to absolute
-			if strings.HasPrefix(url, "/") {
-				url = "https://gasetten.se" + url
-			}
-
-			// Deduplicate
-			if !contains(links, url) {
-				links = append(links, url)
-			}
+		// Convert relative URLs to absolute
+		if strings.HasPrefix(url, "/") {
+			url = "https://gasetten.se" + url
 		}
 
-		// If we found links with this selector, use them
-		if len(links) > 0 {
-			break
+		// Filter for article URLs - Gasetten articles are in categories like /malmo-ff/, /blogg/, etc.
+		// Skip navigation links, author pages, tag pages, category pages, etc.
+		if !strings.HasPrefix(url, "https://gasetten.se/") {
+			continue
+		}
+
+		// Skip non-article pages
+		if strings.Contains(url, "/author/") ||
+			strings.Contains(url, "/tag/") ||
+			strings.Contains(url, "/category/") ||
+			strings.Contains(url, "/page/") ||
+			strings.Contains(url, "/wp-content/") ||
+			strings.Contains(url, "/wp-login") ||
+			strings.Contains(url, "/min-profil") ||
+			strings.Contains(url, "/about") ||
+			strings.Contains(url, "/arkiv") ||
+			strings.Contains(url, "/stotta-oss") ||
+			strings.Contains(url, "/annonsera") ||
+			strings.Contains(url, "/registrera") ||
+			strings.Contains(url, "/kop-plus") ||
+			strings.HasSuffix(url, "gasetten.se/") ||
+			strings.HasSuffix(url, "gasetten.se/#") {
+			continue
+		}
+
+		// Must have at least 2 path segments (e.g., /malmo-ff/article-slug/)
+		parts := strings.Split(strings.TrimPrefix(strings.TrimSuffix(url, "/"), "https://gasetten.se/"), "/")
+		if len(parts) < 2 {
+			continue
+		}
+
+		// Deduplicate
+		if !seen[url] {
+			seen[url] = true
+			links = append(links, url)
 		}
 	}
 
+	log.Printf("Filtered to %d article links", len(links))
 	return links
 }
 
-// scrapeArticle scrapes a single article page
-func (s *Scraper) scrapeArticle(ctx context.Context, url string) (*database.Article, error) {
-	page := s.browser.MustPage(url)
+// scrapeArticle scrapes a single article page using Mozilla Readability
+func (s *Scraper) scrapeArticle(ctx context.Context, articleURL string) (*database.Article, error) {
+	page := s.browser.MustPage(articleURL)
 	defer page.Close()
 
-	page.MustWaitLoad()
+	// Set page timeout
+	page = page.Timeout(PageTimeout)
 
+	if err := page.WaitLoad(); err != nil {
+		return nil, fmt.Errorf("timeout waiting for article page to load: %w", err)
+	}
+
+	// Wait a bit for any lazy-loaded content
+	time.Sleep(500 * time.Millisecond)
+
+	// Get the full HTML of the page
+	htmlContent, err := page.HTML()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get page HTML: %w", err)
+	}
+
+	// Parse URL for readability
+	parsedURL, err := url.Parse(articleURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	// Use Mozilla Readability to extract article content
+	readabilityArticle, err := readability.FromReader(strings.NewReader(htmlContent), parsedURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse article with readability: %w", err)
+	}
+
+	log.Printf("Readability extracted: title='%s', byline='%s', content=%d chars, text=%d chars",
+		readabilityArticle.Title,
+		readabilityArticle.Byline,
+		len(readabilityArticle.Content),
+		len(readabilityArticle.TextContent))
+
+	// Create article from readability results
 	article := &database.Article{
-		Source: "gasetten",
-		URL:    url,
+		Source:      "gasetten",
+		URL:         articleURL,
+		ContentHTML: &readabilityArticle.Content,
+		ContentText: &readabilityArticle.TextContent,
 	}
 
-	// Extract title
-	title := s.extractText(page, `h1, .article-title, article h1, [class*="title"]`)
-	if title != "" {
-		article.Title = &title
+	// Set title
+	if readabilityArticle.Title != "" {
+		article.Title = &readabilityArticle.Title
 	}
 
-	// Extract author
-	author := s.extractText(page, `.author, .byline, [class*="author"], [rel="author"]`)
-	if author != "" {
-		article.Author = &author
+	// Set author (byline)
+	if readabilityArticle.Byline != "" {
+		article.Author = &readabilityArticle.Byline
 	}
 
-	// Extract published date
-	publishedAt := s.extractDate(page)
-	if publishedAt != nil {
-		article.PublishedAt = publishedAt
-	}
-
-	// Extract article content HTML
-	contentHTML := s.extractHTML(page, `article, .article-content, .post-content, main article, [class*="content"]`)
-	if contentHTML != "" {
-		article.ContentHTML = &contentHTML
-	}
-
-	// Extract plain text content
-	contentText := s.extractText(page, `article, .article-content, .post-content, main article, [class*="content"]`)
-	if contentText != "" {
-		article.ContentText = &contentText
+	// Try to extract published date from meta tags or readability
+	if readabilityArticle.PublishedTime != nil && !readabilityArticle.PublishedTime.IsZero() {
+		article.PublishedAt = readabilityArticle.PublishedTime
+		log.Printf("Extracted date from readability: %v", readabilityArticle.PublishedTime)
+	} else {
+		// Fallback to manual date extraction
+		publishedAt := s.extractDate(page)
+		if publishedAt != nil {
+			article.PublishedAt = publishedAt
+			log.Printf("Extracted date manually: %v", publishedAt)
+		}
 	}
 
 	return article, nil
@@ -312,11 +496,12 @@ func (s *Scraper) extractHTML(page *rod.Page, selectors string) string {
 func (s *Scraper) extractDate(page *rod.Page) *time.Time {
 	// Try to find date in various formats and selectors
 	selectors := []string{
+		`time.post-date[datetime]`,
+		`time.entry-date[datetime]`,
 		`time[datetime]`,
-		`.published-date`,
+		`meta[property="article:published_time"]`,
 		`.post-date`,
 		`[class*="date"]`,
-		`meta[property="article:published_time"]`,
 	}
 
 	for _, selector := range selectors {
@@ -327,8 +512,19 @@ func (s *Scraper) extractDate(page *rod.Page) *time.Time {
 
 		// Try datetime attribute first (for <time> elements)
 		if datetime, err := el.Attribute("datetime"); err == nil && datetime != nil {
-			if t, err := time.Parse(time.RFC3339, *datetime); err == nil {
-				return &t
+			dateStr := *datetime
+
+			// Try various date formats
+			formats := []string{
+				time.RFC3339,
+				"2006-01-02",
+				"2006-01-02T15:04:05",
+			}
+
+			for _, format := range formats {
+				if t, err := time.Parse(format, dateStr); err == nil {
+					return &t
+				}
 			}
 		}
 
@@ -341,15 +537,21 @@ func (s *Scraper) extractDate(page *rod.Page) *time.Time {
 
 		// Try parsing text content
 		if text, err := el.Text(); err == nil {
-			// Try common date formats
+			// Try common Swedish/international date formats
 			formats := []string{
-				"2006-01-02",
+				"2 January 2006", // "9 november, 2025"
+				"2 January, 2006",
 				"January 2, 2006",
-				"2 January 2006",
+				"2006-01-02",
 				"02 Jan 2006",
 			}
+
+			// Clean up text (remove extra spaces, commas at weird places)
+			cleanText := strings.TrimSpace(text)
+			cleanText = strings.Replace(cleanText, ",", "", -1)
+
 			for _, format := range formats {
-				if t, err := time.Parse(format, strings.TrimSpace(text)); err == nil {
+				if t, err := time.Parse(format, cleanText); err == nil {
 					return &t
 				}
 			}

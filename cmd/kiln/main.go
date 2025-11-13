@@ -44,7 +44,7 @@ func run() error {
 	log.Println("Connected to database")
 
 	// Initialize scraper
-	scraper, err := scraper.New(cfg.GasettenUser, cfg.GasettenPass, db)
+	scraper, err := scraper.New(cfg.GasettenUser, cfg.GasettenPass, db, cfg.ScraperHeadless)
 	if err != nil {
 		return fmt.Errorf("failed to initialize scraper: %w", err)
 	}

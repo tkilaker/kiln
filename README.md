@@ -6,7 +6,11 @@
 
 - **Automated Login**: Automatically authenticates with Gasetten.se using your credentials
 - **Smart Scraping**: Uses headless browser automation (Rod) to handle JavaScript-rendered content
+- **Real-Time Progress**: Live scraping updates with progress bar and status messages via SSE
+- **Instant UI Updates**: Articles appear immediately as they're scraped—no refresh needed
 - **Article Storage**: Stores full article content (HTML + text) in PostgreSQL
+- **Individual Article Management**: Delete specific articles with confirmation dialog
+- **Smart Sorting**: Articles ordered by publication date (most recent first)
 - **Web Interface**: Clean, responsive UI built with HTMX and TailwindCSS
 - **RSS Feed**: Generate personal RSS feeds for consumption in podcast apps or readers
 - **Session Persistence**: Maintains login sessions between runs
@@ -78,8 +82,18 @@ make docker-logs
 
 1. Open http://localhost:8080 in your browser
 2. Click the "Scrape New Articles" button
-3. The scraper will log in to Gasetten and fetch new articles
-4. New articles appear in the list automatically (via HTMX)
+3. Watch real-time progress with:
+   - Live status messages (logging in, extracting links, processing articles)
+   - Progress bar showing completion percentage
+   - Counter of new articles added
+4. Articles appear instantly in the list as they're scraped
+5. No need to refresh—everything updates automatically!
+
+### Managing Articles
+
+- **View Article**: Click on any article card to see the full content
+- **Delete Article**: Click the trash icon in the top-right of any article card
+- **Clear All**: Use the "Clear All" button to remove all articles (requires confirmation)
 
 ### RSS Feed
 
@@ -215,6 +229,12 @@ docker-compose restart db
 - [x] Web UI with HTMX
 - [x] RSS feed generation
 - [x] Docker deployment
+- [x] Real-time scraping progress with loading indicators
+- [x] Server-Sent Events (SSE) for live updates
+- [x] Articles appear in real-time as they're scraped
+- [x] Individual article deletion with confirmation
+- [x] Auto-updating UI (no manual refresh needed)
+- [x] Date-based article sorting (descending order)
 
 ### Future Stages
 

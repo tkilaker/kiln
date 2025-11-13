@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/tim/kiln/internal/database"
+	"github.com/tkilaker/kiln/internal/database"
 	"fmt"
 )
 
@@ -15,6 +15,11 @@ templ Layout(title string) {
 			<title>{ title } - Kiln</title>
 			<script src="https://unpkg.com/htmx.org@1.9.10"></script>
 			<script src="https://cdn.tailwindcss.com"></script>
+			<style>
+				.htmx-indicator { display: none; }
+				.htmx-request .htmx-indicator { display: inline-block; }
+				.htmx-request.htmx-indicator { display: inline-block; }
+			</style>
 		</head>
 		<body class="bg-gray-50">
 			<nav class="bg-white shadow-sm mb-8">
@@ -42,14 +47,37 @@ templ ArticleListPage(articles []*database.Article) {
 	@Layout("Articles") {
 		<div class="mb-6 flex justify-between items-center">
 			<h2 class="text-3xl font-bold text-gray-900">Articles</h2>
-			<button
-				hx-post="/scrape"
-				hx-target="#scrape-result"
-				hx-swap="innerHTML"
-				class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
-			>
-				Scrape New Articles
-			</button>
+			<div class="flex gap-2">
+				<button
+					hx-post="/scrape"
+					hx-target="#scrape-result"
+					hx-swap="innerHTML"
+					hx-disabled-elt="this"
+					hx-indicator="#scrape-spinner"
+					class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					<span class="inline-flex items-center gap-2">
+						<span id="scrape-spinner" class="htmx-indicator">
+							<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+						</span>
+						<span>Scrape New Articles</span>
+					</span>
+				</button>
+				if len(articles) > 0 {
+					<button
+						hx-post="/articles/clear"
+						hx-target="#scrape-result"
+						hx-swap="innerHTML"
+						hx-confirm="Are you sure you want to delete all articles? This cannot be undone."
+						class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium"
+					>
+						Clear All
+					</button>
+				}
+			</div>
 		</div>
 		<div id="scrape-result" class="mb-4"></div>
 		if len(articles) == 0 {
@@ -68,8 +96,20 @@ templ ArticleListPage(articles []*database.Article) {
 
 // ArticleCard renders a single article card
 templ ArticleCard(article *database.Article) {
-	<div class="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
-		<a href={ templ.URL(fmt.Sprintf("/articles/%d", article.ID)) } class="block">
+	<div class="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow relative" id={ fmt.Sprintf("article-%d", article.ID) }>
+		<button
+			hx-delete={ fmt.Sprintf("/articles/%d", article.ID) }
+			hx-target={ fmt.Sprintf("#article-%d", article.ID) }
+			hx-swap="outerHTML"
+			hx-confirm="Are you sure you want to delete this article?"
+			class="absolute top-4 right-4 text-gray-400 hover:text-red-600 transition-colors"
+			title="Delete article"
+		>
+			<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+				<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+			</svg>
+		</button>
+		<a href={ templ.URL(fmt.Sprintf("/articles/%d", article.ID)) } class="block pr-8">
 			<h3 class="text-xl font-semibold text-gray-900 mb-2">
 				if article.Title != nil {
 					{ *article.Title }

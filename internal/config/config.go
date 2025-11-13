@@ -23,6 +23,9 @@ type Config struct {
 	FeedDescription string
 	FeedLink        string
 	FeedAuthor      string
+
+	// Scraper
+	ScraperHeadless bool
 }
 
 // Load reads configuration from environment variables
@@ -36,6 +39,7 @@ func Load() (*Config, error) {
 		FeedDescription: getEnv("FEED_DESCRIPTION", "Articles from Gasetten"),
 		FeedLink:        getEnv("FEED_LINK", "http://localhost:8080"),
 		FeedAuthor:      getEnv("FEED_AUTHOR", "Kiln User"),
+		ScraperHeadless: getEnvAsBool("SCRAPER_HEADLESS", true),
 	}
 
 	// Validate required fields
@@ -65,6 +69,18 @@ func getEnvAsInt(key string, defaultValue int) int {
 		return defaultValue
 	}
 	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+func getEnvAsBool(key string, defaultValue bool) bool {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(valueStr)
 	if err != nil {
 		return defaultValue
 	}

@@ -102,7 +102,7 @@ func (db *DB) GetAllArticles(ctx context.Context, limit int) ([]*Article, error)
 	query := `
 		SELECT id, source, url, title, author, published_at, content_html, content_text, created_at, updated_at
 		FROM articles
-		ORDER BY created_at DESC
+		ORDER BY COALESCE(published_at, created_at) DESC
 		LIMIT $1
 	`
 
@@ -195,4 +195,32 @@ func (db *DB) ArticleExists(ctx context.Context, url string) (bool, error) {
 	}
 
 	return exists, nil
+}
+
+// DeleteArticle deletes a specific article by ID
+func (db *DB) DeleteArticle(ctx context.Context, id int) error {
+	query := `DELETE FROM articles WHERE id = $1`
+
+	result, err := db.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete article: %w", err)
+	}
+
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("article not found")
+	}
+
+	return nil
+}
+
+// DeleteAllArticles deletes all articles from the database
+func (db *DB) DeleteAllArticles(ctx context.Context) (int64, error) {
+	query := `DELETE FROM articles`
+
+	result, err := db.pool.Exec(ctx, query)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete articles: %w", err)
+	}
+
+	return result.RowsAffected(), nil
 }
