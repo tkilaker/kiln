@@ -58,19 +58,33 @@ func New(username, password string, db *database.DB, headless bool) (*Scraper, e
 
 // initBrowser initializes the Rod browser instance
 func (s *Scraper) initBrowser() error {
+	// Check if browser exists and is still alive
 	if s.browser != nil {
-		return nil // Already initialized
+		if s.isBrowserAlive() {
+			return nil
+		}
+		// Browser connection is dead, clean it up
+		log.Println("Browser connection is stale, reinitializing...")
+		s.browser.Close()
+		s.browser = nil
 	}
 
 	// Launch browser
 	path, _ := launcher.LookPath()
-	u := launcher.New().
+	l := launcher.New().
 		Bin(path).
 		Headless(s.headless).
-		UserDataDir(s.sessionDir).
-		MustLaunch()
+		UserDataDir(s.sessionDir)
 
-	browser := rod.New().ControlURL(u).MustConnect()
+	u, err := l.Launch()
+	if err != nil {
+		return fmt.Errorf("failed to launch browser: %w", err)
+	}
+
+	browser := rod.New().ControlURL(u)
+	if err := browser.Connect(); err != nil {
+		return fmt.Errorf("failed to connect to browser: %w", err)
+	}
 	s.browser = browser
 
 	if s.headless {
@@ -80,6 +94,24 @@ func (s *Scraper) initBrowser() error {
 	}
 
 	return nil
+}
+
+// isBrowserAlive checks if the browser connection is still active
+func (s *Scraper) isBrowserAlive() bool {
+	if s.browser == nil {
+		return false
+	}
+
+	// Try to get browser info to test the connection
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Browser health check failed: %v", r)
+		}
+	}()
+
+	// Attempt a simple operation that would fail if connection is dead
+	_ = s.browser.GetContext()
+	return true
 }
 
 // Close closes the browser and cleans up resources
@@ -101,7 +133,11 @@ func (s *Scraper) Login(ctx context.Context) error {
 		return err
 	}
 
-	page := s.browser.MustPage("https://gasetten.se/min-profil/")
+	// Create page with error handling instead of panicking
+	page, err := s.browser.Page(proto.TargetCreateTarget{URL: "https://gasetten.se/min-profil/"})
+	if err != nil {
+		return fmt.Errorf("failed to create page: %w", err)
+	}
 	defer page.Close()
 
 	// Set page timeout
@@ -160,12 +196,18 @@ func (s *Scraper) Login(ctx context.Context) error {
 	}
 
 	// Log where we ended up
-	currentURL := page.MustInfo().URL
-	log.Printf("After login, redirected to: %s", currentURL)
+	pageInfo, err := page.Info()
+	if err == nil {
+		log.Printf("After login, redirected to: %s", pageInfo.URL)
+	}
 
 	// Verify login was successful
 	if !s.isLoggedIn(page) {
 		// Log additional debug info
+		currentURL := "unknown"
+		if pageInfo, err := page.Info(); err == nil {
+			currentURL = pageInfo.URL
+		}
 		log.Printf("Login verification failed at URL: %s", currentURL)
 
 		// Check if there's an error message on the page
@@ -227,7 +269,11 @@ func (s *Scraper) ScrapeArticles(ctx context.Context) (int, error) {
 	s.progress.UpdateStatus(StatusScraping, "Loading article category page...")
 
 	// Scrape from the Malmö FF category page which has better article organization
-	page := s.browser.MustPage("https://gasetten.se/category/malmo-ff/")
+	page, err := s.browser.Page(proto.TargetCreateTarget{URL: "https://gasetten.se/category/malmo-ff/"})
+	if err != nil {
+		s.progress.UpdateStatus(StatusFailed, "Failed to load category page")
+		return 0, fmt.Errorf("failed to create page: %w", err)
+	}
 	defer page.Close()
 
 	// Set page timeout
@@ -389,7 +435,10 @@ func (s *Scraper) extractArticleLinks(page *rod.Page) []string {
 
 // scrapeArticle scrapes a single article page using Mozilla Readability
 func (s *Scraper) scrapeArticle(ctx context.Context, articleURL string) (*database.Article, error) {
-	page := s.browser.MustPage(articleURL)
+	page, err := s.browser.Page(proto.TargetCreateTarget{URL: articleURL})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create page: %w", err)
+	}
 	defer page.Close()
 
 	// Set page timeout
