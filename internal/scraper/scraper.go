@@ -102,16 +102,19 @@ func (s *Scraper) isBrowserAlive() bool {
 		return false
 	}
 
-	// Try to get browser info to test the connection
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Browser health check failed: %v", r)
 		}
 	}()
 
-	// Attempt a simple operation that would fail if connection is dead
-	_ = s.browser.GetContext()
-	return true
+	// Use a real CDP command with timeout to verify the WebSocket connection
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Try to get browser version - this actually sends a CDP command over the WebSocket
+	_, err := s.browser.Context(ctx).Version()
+	return err == nil
 }
 
 // Close closes the browser and cleans up resources
@@ -120,6 +123,40 @@ func (s *Scraper) Close() error {
 		return s.browser.Close()
 	}
 	return nil
+}
+
+// createPageWithRetry attempts to create a page with automatic retry and browser reinitialization
+func (s *Scraper) createPageWithRetry(url string) (*rod.Page, error) {
+	maxRetries := 2
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		// Ensure browser is initialized and healthy
+		if err := s.initBrowser(); err != nil {
+			return nil, fmt.Errorf("failed to initialize browser: %w", err)
+		}
+
+		// Attempt to create the page
+		page, err := s.browser.Page(proto.TargetCreateTarget{URL: url})
+		if err == nil {
+			return page, nil
+		}
+
+		log.Printf("Failed to create page (attempt %d/%d): %v", attempt, maxRetries, err)
+
+		// On failure, force browser reinitialization for next attempt
+		if s.browser != nil {
+			s.browser.Close()
+			s.browser = nil
+		}
+
+		// Don't retry if we've exhausted attempts
+		if attempt == maxRetries {
+			return nil, fmt.Errorf("failed to create page after %d attempts: %w", maxRetries, err)
+		}
+	}
+
+	// Should never reach here, but satisfy the compiler
+	return nil, fmt.Errorf("failed to create page")
 }
 
 // GetProgressTracker returns the progress tracker
@@ -133,10 +170,10 @@ func (s *Scraper) Login(ctx context.Context) error {
 		return err
 	}
 
-	// Create page with error handling instead of panicking
-	page, err := s.browser.Page(proto.TargetCreateTarget{URL: "https://gasetten.se/min-profil/"})
+	// Create page with retry logic for stale connections
+	page, err := s.createPageWithRetry("https://gasetten.se/min-profil/")
 	if err != nil {
-		return fmt.Errorf("failed to create page: %w", err)
+		return fmt.Errorf("failed to create login page: %w", err)
 	}
 	defer page.Close()
 
@@ -269,10 +306,10 @@ func (s *Scraper) ScrapeArticles(ctx context.Context) (int, error) {
 	s.progress.UpdateStatus(StatusScraping, "Loading article category page...")
 
 	// Scrape from the Malmö FF category page which has better article organization
-	page, err := s.browser.Page(proto.TargetCreateTarget{URL: "https://gasetten.se/category/malmo-ff/"})
+	page, err := s.createPageWithRetry("https://gasetten.se/category/malmo-ff/")
 	if err != nil {
 		s.progress.UpdateStatus(StatusFailed, "Failed to load category page")
-		return 0, fmt.Errorf("failed to create page: %w", err)
+		return 0, fmt.Errorf("failed to create category page: %w", err)
 	}
 	defer page.Close()
 
@@ -435,9 +472,9 @@ func (s *Scraper) extractArticleLinks(page *rod.Page) []string {
 
 // scrapeArticle scrapes a single article page using Mozilla Readability
 func (s *Scraper) scrapeArticle(ctx context.Context, articleURL string) (*database.Article, error) {
-	page, err := s.browser.Page(proto.TargetCreateTarget{URL: articleURL})
+	page, err := s.createPageWithRetry(articleURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create page: %w", err)
+		return nil, fmt.Errorf("failed to create article page: %w", err)
 	}
 	defer page.Close()
 
