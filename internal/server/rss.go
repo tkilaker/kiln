@@ -66,6 +66,66 @@ func GenerateRSSFeed(articles []*database.Article, cfg *config.Config) (string, 
 	return rss, nil
 }
 
+// GeneratePodcastFeed creates a podcast-compatible RSS feed with audio enclosures
+func GeneratePodcastFeed(articles []*database.Article, audioMap map[int]*database.AudioFile, cfg *config.Config) (string, error) {
+	now := time.Now()
+
+	feed := &feeds.Feed{
+		Title:       cfg.FeedTitle + " (Podcast)",
+		Link:        &feeds.Link{Href: cfg.FeedLink + "/podcast.xml"},
+		Description: cfg.FeedDescription + " - Audio versions of articles",
+		Author:      &feeds.Author{Name: cfg.FeedAuthor},
+		Created:     now,
+	}
+
+	// Only include articles that have completed audio
+	feed.Items = make([]*feeds.Item, 0)
+	for _, article := range articles {
+		audio, hasAudio := audioMap[article.ID]
+		if !hasAudio || audio.Status != "completed" {
+			continue
+		}
+
+		item := &feeds.Item{
+			Title: getArticleTitle(article),
+			Link:  &feeds.Link{Href: fmt.Sprintf("%s/articles/%d", cfg.FeedLink, article.ID)},
+			Id:    fmt.Sprintf("%s/articles/%d/audio", cfg.FeedLink, article.ID),
+			Enclosure: &feeds.Enclosure{
+				Url:    fmt.Sprintf("%s/articles/%d/audio?voice=%s", cfg.FeedLink, article.ID, audio.Voice),
+				Length: fmt.Sprintf("%d", audio.FileSize),
+				Type:   "audio/mpeg",
+			},
+		}
+
+		if article.ContentText != nil {
+			description := *article.ContentText
+			if len(description) > 500 {
+				description = description[:500] + "..."
+			}
+			item.Description = description
+		}
+
+		if article.Author != nil {
+			item.Author = &feeds.Author{Name: *article.Author}
+		}
+
+		if article.PublishedAt != nil {
+			item.Created = *article.PublishedAt
+		} else {
+			item.Created = article.CreatedAt
+		}
+
+		feed.Items = append(feed.Items, item)
+	}
+
+	rss, err := feed.ToRss()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate podcast RSS: %w", err)
+	}
+
+	return rss, nil
+}
+
 func getArticleTitle(article *database.Article) string {
 	if article.Title != nil {
 		return *article.Title

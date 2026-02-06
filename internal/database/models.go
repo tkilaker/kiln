@@ -15,3 +15,16 @@ type Article struct {
 	CreatedAt   time.Time  `db:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"`
 }
+
+// AudioFile represents a TTS-generated audio file for an article
+type AudioFile struct {
+	ID           int       `db:"id"`
+	ArticleID    int       `db:"article_id"`
+	Voice        string    `db:"voice"`
+	FilePath     string    `db:"file_path"`
+	FileSize     int64     `db:"file_size"`
+	Status       string    `db:"status"` // pending, generating, completed, failed
+	ErrorMessage *string   `db:"error_message"`
+	CreatedAt    time.Time `db:"created_at"`
+	UpdatedAt    time.Time `db:"updated_at"`
+}
