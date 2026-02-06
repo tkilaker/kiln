@@ -26,6 +26,12 @@ type Config struct {
 
 	// Scraper
 	ScraperHeadless bool
+
+	// TTS (Text-to-Speech)
+	OpenAIAPIKey string
+	TTSModel     string
+	TTSVoice     string
+	AudioDir     string
 }
 
 // Load reads configuration from environment variables
@@ -40,6 +46,10 @@ func Load() (*Config, error) {
 		FeedLink:        getEnv("FEED_LINK", "http://localhost:8080"),
 		FeedAuthor:      getEnv("FEED_AUTHOR", "Kiln User"),
 		ScraperHeadless: getEnvAsBool("SCRAPER_HEADLESS", true),
+		OpenAIAPIKey:    getEnv("OPENAI_API_KEY", ""),
+		TTSModel:        getEnv("TTS_MODEL", "tts-1"),
+		TTSVoice:        getEnv("TTS_VOICE", "alloy"),
+		AudioDir:        getEnv("AUDIO_DIR", "/data/audio"),
 	}
 
 	// Validate required fields

@@ -13,6 +13,7 @@ import (
 	"github.com/tkilaker/kiln/internal/database"
 	"github.com/tkilaker/kiln/internal/scraper"
 	"github.com/tkilaker/kiln/internal/server"
+	"github.com/tkilaker/kiln/internal/tts"
 )
 
 func main() {
@@ -51,8 +52,20 @@ func run() error {
 	defer scraper.Close()
 	log.Println("Initialized scraper")
 
+	// Initialize TTS service (optional - only if API key is configured)
+	var ttsSvc *tts.Service
+	if cfg.OpenAIAPIKey != "" {
+		ttsSvc, err = tts.New(cfg.OpenAIAPIKey, cfg.TTSModel, cfg.TTSVoice, cfg.AudioDir)
+		if err != nil {
+			return fmt.Errorf("failed to initialize TTS: %w", err)
+		}
+		log.Printf("Initialized TTS service (model=%s, voice=%s, dir=%s)", cfg.TTSModel, cfg.TTSVoice, cfg.AudioDir)
+	} else {
+		log.Println("TTS disabled (OPENAI_API_KEY not set)")
+	}
+
 	// Create server
-	srv := server.New(db, scraper, cfg)
+	srv := server.New(db, scraper, ttsSvc, cfg)
 	log.Println("Initialized server")
 
 	// Handle graceful shutdown

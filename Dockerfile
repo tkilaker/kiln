@@ -30,8 +30,11 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=builder /build/kiln .
 
+# Create audio directory for TTS
+RUN mkdir -p /data/audio
+
 # Change ownership
-RUN chown -R kiln:kiln /app
+RUN chown -R kiln:kiln /app /data/audio
 
 # Switch to non-root user
 USER kiln
