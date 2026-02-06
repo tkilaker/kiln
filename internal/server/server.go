@@ -110,7 +110,7 @@ func (s *Server) handleArticleList(w http.ResponseWriter, r *http.Request) {
 	audioMap, _ := s.db.GetCompletedAudioForArticles(ctx, articleIDs)
 
 	// Render template
-	ArticleListPage(articles, audioMap, s.ttsEnabled()).Render(ctx, w)
+	ArticleListPage(articles, audioMap, s.ttsInfo()).Render(ctx, w)
 }
 
 // handleArticleDetail renders a single article
@@ -134,7 +134,7 @@ func (s *Server) handleArticleDetail(w http.ResponseWriter, r *http.Request) {
 	audioFiles, _ := s.db.GetAudioFilesByArticle(ctx, id)
 
 	// Render template
-	ArticleDetailPage(article, audioFiles, s.ttsEnabled()).Render(ctx, w)
+	ArticleDetailPage(article, audioFiles, s.ttsInfo()).Render(ctx, w)
 }
 
 // handleScrape triggers a manual scrape operation
@@ -380,6 +380,17 @@ func (s *Server) ttsEnabled() bool {
 	return s.tts != nil
 }
 
+// ttsInfo returns TTS information for templates
+func (s *Server) ttsInfo() TTSInfo {
+	if s.tts == nil {
+		return TTSInfo{Enabled: false}
+	}
+	return TTSInfo{
+		Enabled: true,
+		Voices:  s.tts.AvailableVoices(),
+	}
+}
+
 // handleGenerateTTS triggers TTS generation for an article
 func (s *Server) handleGenerateTTS(w http.ResponseWriter, r *http.Request) {
 	if !s.ttsEnabled() {
@@ -399,7 +410,7 @@ func (s *Server) handleGenerateTTS(w http.ResponseWriter, r *http.Request) {
 	// Get the voice from form data or query param
 	voice := r.FormValue("voice")
 	if voice == "" {
-		voice = s.config.TTSVoice
+		voice = s.tts.DefaultVoice()
 	}
 
 	// Check if article exists
@@ -508,8 +519,11 @@ func (s *Server) handleServeAudio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	voice := r.URL.Query().Get("voice")
+	if voice == "" && s.tts != nil {
+		voice = s.tts.DefaultVoice()
+	}
 	if voice == "" {
-		voice = s.config.TTSVoice
+		voice = "alloy" // fallback
 	}
 
 	audio, err := s.db.GetAudioFileByArticle(ctx, id, voice)
@@ -555,12 +569,17 @@ func (s *Server) handleServeAudio(w http.ResponseWriter, r *http.Request) {
 // handleTTSVoices returns the list of available TTS voices
 func (s *Server) handleTTSVoices(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	voices := tts.AvailableVoices()
+	if s.tts == nil {
+		fmt.Fprint(w, `{"voices":[],"default":""}`)
+		return
+	}
+	voices := s.tts.AvailableVoices()
 	var items []string
 	for _, v := range voices {
-		items = append(items, fmt.Sprintf(`"%s"`, v))
+		items = append(items, fmt.Sprintf(`{"id":"%s","name":"%s"}`, v.ID, v.Name))
 	}
-	fmt.Fprintf(w, `{"voices":[%s],"default":"%s"}`, strings.Join(items, ","), s.config.TTSVoice)
+	fmt.Fprintf(w, `{"voices":[%s],"default":"%s","provider":"%s"}`,
+		strings.Join(items, ","), s.tts.DefaultVoice(), s.tts.ProviderName())
 }
 
 // handleRSS generates and serves the RSS feed

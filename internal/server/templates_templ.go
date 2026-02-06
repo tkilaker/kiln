@@ -14,6 +14,12 @@ import (
 	"github.com/tkilaker/kiln/internal/tts"
 )
 
+// TTSInfo holds TTS state passed to templates
+type TTSInfo struct {
+	Enabled bool
+	Voices  []tts.Voice
+}
+
 // Layout is the base HTML template
 func Layout(title string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -43,7 +49,7 @@ func Layout(title string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 16, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 22, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -66,7 +72,7 @@ func Layout(title string) templ.Component {
 }
 
 // ArticleListPage renders the list of articles
-func ArticleListPage(articles []*database.Article, audioMap map[int]*database.AudioFile, ttsEnabled bool) templ.Component {
+func ArticleListPage(articles []*database.Article, audioMap map[int]*database.AudioFile, ttsInfo TTSInfo) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -124,7 +130,7 @@ func ArticleListPage(articles []*database.Article, audioMap map[int]*database.Au
 					return templ_7745c5c3_Err
 				}
 				for _, article := range articles {
-					templ_7745c5c3_Err = ArticleCardWithAudio(article, audioMap[article.ID], ttsEnabled).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = ArticleCardWithAudio(article, audioMap[article.ID], ttsInfo.Enabled).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -173,7 +179,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("article-%d", article.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 101, Col: 133}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 107, Col: 133}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {
@@ -186,7 +192,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/articles/%d", article.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 103, Col: 54}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 109, Col: 54}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -199,7 +205,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#article-%d", article.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 104, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 110, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -212,7 +218,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 		var templ_7745c5c3_Var9 templ.SafeURL
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/articles/%d", article.ID)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 114, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 120, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -226,7 +232,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(*article.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 117, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 123, Col: 21}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -250,7 +256,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(*article.Author)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 124, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 130, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -269,7 +275,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(article.PublishedAt.Format("January 2, 2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 127, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 133, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -287,7 +293,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(article.CreatedAt.Format("January 2, 2006"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 129, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 135, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -316,7 +322,7 @@ func ArticleCardWithAudio(article *database.Article, audio *database.AudioFile, 
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(truncate(*article.ContentText, 200))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 142, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 148, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -366,7 +372,7 @@ func ArticleCard(article *database.Article) templ.Component {
 }
 
 // ArticleDetailPage renders a single article in detail
-func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFile, ttsEnabled bool) templ.Component {
+func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFile, ttsInfo TTSInfo) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -407,7 +413,7 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(*article.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 164, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 170, Col: 22}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -431,7 +437,7 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(*article.Author)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 171, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 177, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 				if templ_7745c5c3_Err != nil {
@@ -450,7 +456,7 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(article.PublishedAt.Format("January 2, 2006"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 174, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 180, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -468,7 +474,7 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(article.CreatedAt.Format("January 2, 2006"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 176, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 182, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {
@@ -486,7 +492,7 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 			var templ_7745c5c3_Var22 templ.SafeURL
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(article.URL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 180, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 186, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -496,7 +502,7 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if ttsEnabled {
+			if ttsInfo.Enabled {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "<div class=\"mb-8 p-4 bg-gray-50 rounded-lg border\" id=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -504,7 +510,7 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("tts-section-%d", article.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 187, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 193, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -523,30 +529,36 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 							}
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, " <div class=\"mt-3 border-t pt-3\"><details class=\"text-sm text-gray-500\"><summary class=\"cursor-pointer hover:text-gray-700\">Generate with a different voice</summary><div class=\"mt-2\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, " ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = VoiceSelector(article.ID).Render(ctx, templ_7745c5c3_Buffer)
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "</div></details></div>")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
+					if len(ttsInfo.Voices) > 1 {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "<div class=\"mt-3 border-t pt-3\"><details class=\"text-sm text-gray-500\"><summary class=\"cursor-pointer hover:text-gray-700\">Generate with a different voice</summary><div class=\"mt-2\">")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = VoiceSelector(article.ID, ttsInfo.Voices).Render(ctx, templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</div></details></div>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
 					}
 				} else {
-					templ_7745c5c3_Err = VoiceSelector(article.ID).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = VoiceSelector(article.ID, ttsInfo.Voices).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<div class=\"prose prose-lg max-w-none\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<div class=\"prose prose-lg max-w-none\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -556,30 +568,30 @@ func ArticleDetailPage(article *database.Article, audioFiles []*database.AudioFi
 					return templ_7745c5c3_Err
 				}
 			} else if article.ContentText != nil {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "<p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "<p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(*article.ContentText)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 212, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 220, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<p class=\"text-gray-500\">No content available</p>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<p class=\"text-gray-500\">No content available</p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</div></article>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</div></article>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -615,46 +627,46 @@ func AudioPlayer(articleID int, audio *database.AudioFile) templ.Component {
 			templ_7745c5c3_Var25 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "<div class=\"flex items-center gap-2 mb-2\" id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<div class=\"flex items-center gap-2 mb-2\" id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("tts-result-%d", articleID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 223, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 231, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "\"><span class=\"text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "\"><span class=\"text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(audio.Voice)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 224, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 232, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</span> <audio controls class=\"flex-1 h-8\" preload=\"metadata\"><source src=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</span> <audio controls class=\"flex-1 h-8\" preload=\"metadata\"><source src=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/articles/%d/audio?voice=%s", articleID, audio.Voice))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 226, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 234, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\" type=\"audio/mpeg\"></audio></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "\" type=\"audio/mpeg\"></audio></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -663,7 +675,7 @@ func AudioPlayer(articleID int, audio *database.AudioFile) templ.Component {
 }
 
 // VoiceSelector renders a voice selection form for TTS generation
-func VoiceSelector(articleID int) templ.Component {
+func VoiceSelector(articleID int, voices []tts.Voice) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -684,95 +696,95 @@ func VoiceSelector(articleID int) templ.Component {
 			templ_7745c5c3_Var29 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "<div class=\"flex items-center gap-2 flex-wrap\"><label class=\"text-sm text-gray-600\">Voice:</label><form class=\"flex items-center gap-2 flex-wrap\"><select name=\"voice\" id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<div class=\"flex items-center gap-2 flex-wrap\"><label class=\"text-sm text-gray-600\">Voice:</label><form class=\"flex items-center gap-2 flex-wrap\"><select name=\"voice\" id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("voice-select-%d", articleID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 238, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 246, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "\" class=\"text-sm border border-gray-300 rounded px-2 py-1 bg-white\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "\" class=\"text-sm border border-gray-300 rounded px-2 py-1 bg-white\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, v := range tts.AvailableVoices() {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<option value=\"")
+		for _, v := range voices {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<option value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var31 string
-			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(v)
+			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(v.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 242, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 250, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var32 string
-			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(v)
+			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(v.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 242, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 250, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "</option>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</option>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 58, "</select> <button type=\"button\" hx-post=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "</select> <button type=\"button\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/articles/%d/tts", articleID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 247, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 255, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, "\" hx-target=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "\" hx-target=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#tts-section-%d", articleID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 248, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 256, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "\" hx-swap=\"innerHTML\" hx-include=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\" hx-swap=\"innerHTML\" hx-include=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#voice-select-%d", articleID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 250, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/server/templates.templ`, Line: 258, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\" class=\"bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium\">Generate Audio</button></form></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "\" class=\"bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium\">Generate Audio</button></form></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
