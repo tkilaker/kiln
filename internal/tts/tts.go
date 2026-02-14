@@ -3,63 +3,37 @@ package tts
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode"
 )
 
-const (
-	openAITTSURL = "https://api.openai.com/v1/audio/speech"
-	maxChunkSize = 4000 // OpenAI TTS max is 4096 chars, leave some margin
-)
-
-// Service handles text-to-speech conversion using OpenAI's API
+// Service handles text-to-speech conversion using a configurable provider.
 type Service struct {
-	apiKey   string
-	model    string
-	voice    string
+	provider Provider
 	audioDir string
-	client   *http.Client
 }
 
-// New creates a new TTS service
-func New(apiKey, model, voice, audioDir string) (*Service, error) {
-	if apiKey == "" {
-		return nil, fmt.Errorf("OPENAI_API_KEY is required for TTS")
-	}
-
-	// Ensure audio directory exists
+// New creates a new TTS service with the given provider.
+func New(provider Provider, audioDir string) (*Service, error) {
 	if err := os.MkdirAll(audioDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create audio directory %s: %w", audioDir, err)
 	}
 
 	return &Service{
-		apiKey:   apiKey,
-		model:    model,
-		voice:    voice,
+		provider: provider,
 		audioDir: audioDir,
-		client:   &http.Client{},
 	}, nil
-}
-
-// ttsRequest is the request body for OpenAI's TTS API
-type ttsRequest struct {
-	Model string `json:"model"`
-	Input string `json:"input"`
-	Voice string `json:"voice"`
 }
 
 // GenerateAudio converts article text to an MP3 file.
 // Returns the file path and file size.
 func (s *Service) GenerateAudio(ctx context.Context, articleID int, text, voice string) (string, int64, error) {
 	if voice == "" {
-		voice = s.voice
+		voice = s.provider.DefaultVoice()
 	}
 
 	// Clean up text for TTS
@@ -68,16 +42,19 @@ func (s *Service) GenerateAudio(ctx context.Context, articleID int, text, voice 
 		return "", 0, fmt.Errorf("no text content to convert")
 	}
 
-	// Chunk the text if it exceeds the max size
-	chunks := chunkText(text, maxChunkSize)
-	log.Printf("TTS: article %d - %d characters, %d chunk(s), voice=%s", articleID, len(text), len(chunks), voice)
+	// Chunk the text based on provider's limit
+	maxSize := s.provider.MaxChunkSize()
+	chunks := chunkText(text, maxSize)
+	log.Printf("TTS [%s]: article %d - %d characters, %d chunk(s), voice=%s",
+		s.provider.Name(), articleID, len(text), len(chunks), voice)
 
 	// Generate audio for each chunk
 	var audioData bytes.Buffer
 	for i, chunk := range chunks {
-		log.Printf("TTS: article %d - generating chunk %d/%d", articleID, i+1, len(chunks))
+		log.Printf("TTS [%s]: article %d - generating chunk %d/%d",
+			s.provider.Name(), articleID, i+1, len(chunks))
 
-		data, err := s.callTTSAPI(ctx, chunk, voice)
+		data, err := s.provider.GenerateChunkAudio(ctx, chunk, voice)
 		if err != nil {
 			return "", 0, fmt.Errorf("failed to generate audio for chunk %d: %w", i+1, err)
 		}
@@ -93,7 +70,8 @@ func (s *Service) GenerateAudio(ctx context.Context, articleID int, text, voice 
 	}
 
 	fileSize := int64(audioData.Len())
-	log.Printf("TTS: article %d - audio saved to %s (%d bytes)", articleID, filePath, fileSize)
+	log.Printf("TTS [%s]: article %d - audio saved to %s (%d bytes)",
+		s.provider.Name(), articleID, filePath, fileSize)
 
 	return filePath, fileSize, nil
 }
@@ -101,7 +79,7 @@ func (s *Service) GenerateAudio(ctx context.Context, articleID int, text, voice 
 // GetAudioPath returns the expected file path for an article's audio
 func (s *Service) GetAudioPath(articleID int, voice string) string {
 	if voice == "" {
-		voice = s.voice
+		voice = s.provider.DefaultVoice()
 	}
 	filename := fmt.Sprintf("%d_%s.mp3", articleID, voice)
 	return filepath.Join(s.audioDir, filename)
@@ -112,48 +90,19 @@ func (s *Service) AudioDir() string {
 	return s.audioDir
 }
 
-// AvailableVoices returns the list of available OpenAI TTS voices
-func AvailableVoices() []string {
-	return []string{"alloy", "echo", "fable", "onyx", "nova", "shimmer"}
+// AvailableVoices returns the list of voices from the current provider
+func (s *Service) AvailableVoices() []Voice {
+	return s.provider.AvailableVoices()
 }
 
-// callTTSAPI makes a single request to OpenAI's TTS API
-func (s *Service) callTTSAPI(ctx context.Context, text, voice string) ([]byte, error) {
-	reqBody := ttsRequest{
-		Model: s.model,
-		Input: text,
-		Voice: voice,
-	}
+// DefaultVoice returns the default voice ID
+func (s *Service) DefaultVoice() string {
+	return s.provider.DefaultVoice()
+}
 
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, openAITTSURL, bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", "Bearer "+s.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("TTS API request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("TTS API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return body, nil
+// ProviderName returns the name of the active TTS provider
+func (s *Service) ProviderName() string {
+	return s.provider.Name()
 }
 
 // cleanTextForTTS prepares text for TTS conversion

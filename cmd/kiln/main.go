@@ -52,16 +52,38 @@ func run() error {
 	defer scraper.Close()
 	log.Println("Initialized scraper")
 
-	// Initialize TTS service (optional - only if API key is configured)
+	// Initialize TTS service (optional - requires provider API key)
 	var ttsSvc *tts.Service
-	if cfg.OpenAIAPIKey != "" {
-		ttsSvc, err = tts.New(cfg.OpenAIAPIKey, cfg.TTSModel, cfg.TTSVoice, cfg.AudioDir)
+	var ttsProvider tts.Provider
+
+	switch cfg.TTSProvider {
+	case "elevenlabs":
+		if cfg.ElevenLabsAPIKey != "" && cfg.ElevenLabsVoiceID != "" {
+			ttsProvider = tts.NewElevenLabsProvider(
+				cfg.ElevenLabsAPIKey,
+				cfg.ElevenLabsModel,
+				cfg.ElevenLabsVoiceID,
+				cfg.ElevenLabsVoiceName,
+			)
+			log.Printf("Using ElevenLabs TTS provider (model=%s, voice=%s)", cfg.ElevenLabsModel, cfg.ElevenLabsVoiceName)
+		} else {
+			log.Println("TTS disabled (ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID required for elevenlabs provider)")
+		}
+	default: // "openai"
+		if cfg.OpenAIAPIKey != "" {
+			ttsProvider = tts.NewOpenAIProvider(cfg.OpenAIAPIKey, cfg.TTSModel, cfg.TTSVoice)
+			log.Printf("Using OpenAI TTS provider (model=%s, voice=%s)", cfg.TTSModel, cfg.TTSVoice)
+		} else {
+			log.Println("TTS disabled (OPENAI_API_KEY not set)")
+		}
+	}
+
+	if ttsProvider != nil {
+		ttsSvc, err = tts.New(ttsProvider, cfg.AudioDir)
 		if err != nil {
 			return fmt.Errorf("failed to initialize TTS: %w", err)
 		}
-		log.Printf("Initialized TTS service (model=%s, voice=%s, dir=%s)", cfg.TTSModel, cfg.TTSVoice, cfg.AudioDir)
-	} else {
-		log.Println("TTS disabled (OPENAI_API_KEY not set)")
+		log.Printf("Initialized TTS service (provider=%s, dir=%s)", ttsProvider.Name(), cfg.AudioDir)
 	}
 
 	// Create server

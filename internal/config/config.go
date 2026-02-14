@@ -28,10 +28,23 @@ type Config struct {
 	ScraperHeadless bool
 
 	// TTS (Text-to-Speech)
+	TTSProvider string // "openai" or "elevenlabs"
+	AudioDir    string
+
+	// OpenAI TTS
 	OpenAIAPIKey string
 	TTSModel     string
 	TTSVoice     string
-	AudioDir     string
+
+	// ElevenLabs TTS (for custom voice cloning)
+	ElevenLabsAPIKey    string
+	ElevenLabsVoiceID   string
+	ElevenLabsModel     string
+	ElevenLabsVoiceName string
+
+	// Podcast
+	PodcastLanguage string
+	PodcastImageURL string
 }
 
 // Load reads configuration from environment variables
@@ -46,10 +59,17 @@ func Load() (*Config, error) {
 		FeedLink:        getEnv("FEED_LINK", "http://localhost:8080"),
 		FeedAuthor:      getEnv("FEED_AUTHOR", "Kiln User"),
 		ScraperHeadless: getEnvAsBool("SCRAPER_HEADLESS", true),
-		OpenAIAPIKey:    getEnv("OPENAI_API_KEY", ""),
-		TTSModel:        getEnv("TTS_MODEL", "tts-1"),
-		TTSVoice:        getEnv("TTS_VOICE", "alloy"),
-		AudioDir:        getEnv("AUDIO_DIR", "/data/audio"),
+		TTSProvider:         getEnv("TTS_PROVIDER", "openai"),
+		AudioDir:            getEnv("AUDIO_DIR", "/data/audio"),
+		OpenAIAPIKey:        getEnv("OPENAI_API_KEY", ""),
+		TTSModel:            getEnv("TTS_MODEL", "tts-1"),
+		TTSVoice:            getEnv("TTS_VOICE", "alloy"),
+		ElevenLabsAPIKey:    getEnv("ELEVENLABS_API_KEY", ""),
+		ElevenLabsVoiceID:   getEnv("ELEVENLABS_VOICE_ID", ""),
+		ElevenLabsModel:     getEnv("ELEVENLABS_MODEL", "eleven_multilingual_v2"),
+		ElevenLabsVoiceName: getEnv("ELEVENLABS_VOICE_NAME", "Custom Voice"),
+		PodcastLanguage:     getEnv("PODCAST_LANGUAGE", "sv"),
+		PodcastImageURL:     getEnv("PODCAST_IMAGE_URL", ""),
 	}
 
 	// Validate required fields
